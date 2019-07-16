@@ -1,0 +1,30 @@
+name: ieee-linux
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - numpy
+  - pandas
+  - scikit-learn
+  - matplotlib
+  - catboost
+  - seaborn
+  - tsfresh
+  - geopandas
+  - pip:
+    - mlflow
+    - azureml-sdk
+    - databricks-cli
+    - tensorflow==2.0.0-beta1
+    - lightgbm==2.2.3
+    - nbextensions==0.1.0
+    - networkx==2.3
+    - pandas-summary==0.0.6
+    - pillow==6.1.0
+    - plotly==3.10.0
+    - pyproj==2.2.1
+    - scikit-image==0.15.0
+    - shap==0.29.3
+    - tqdm==4.32.2
+    - xgboost==0.90
+
