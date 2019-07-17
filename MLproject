@@ -1,0 +1,13 @@
+name: finansdep_flow
+
+conda_env: environment.yml
+
+# Can have a docker_env instead of a conda_env, e.g.
+# docker_env:
+#    image:  mlflow-docker-example
+
+entry_points:
+  main:
+    parameters:
+      data_file: {type: string, default: MELBOURNE_HOUSE_PRICES_LESS.csv}
+    command: "python train.py -d {data_file}"
