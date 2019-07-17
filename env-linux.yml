@@ -3,6 +3,7 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  - pip
   - numpy
   - pandas
   - scikit-learn
@@ -12,6 +13,7 @@ dependencies:
   - tsfresh
   - geopandas
   - pip:
+    - jupyter
     - mlflow
     - azureml-sdk
     - databricks-cli
