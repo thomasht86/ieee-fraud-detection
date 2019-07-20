@@ -12,11 +12,13 @@ import json
 import shap
 import argparse
 
-categorical_feature_names = ["Suburb", "Type", "Method", "Regionname", "CouncilArea"]
-columns_to_encode = ["Suburb", "Type", "Method", "Postcode", "Regionname", "CouncilArea"]
-columns_to_drop = ["Address", "Date", "Price", "SellerG", "LogPrice"]
+cat_cols = ["DeviceType", "DeviceInfo"]
+cat_cols += ["id_"+str(i) for i in range(12,39)]
+cat_cols += ["ProductCD","addr1", "addr2", "P_emaildomain", "R_emaildomain"]
+cat_cols += ["card"+str(i) for i in range(1,7)]
+cat_cols += ["M"+str(i) for i in range(1,10)]
 
-class HousePricePredictor(mlflow.pyfunc.PythonModel):
+class FraudPredictor(mlflow.pyfunc.PythonModel):
 
     def __init__(self, encoder, explainer, cat_col_idx, reg, log_target=False):
         self.encoder = encoder
@@ -29,9 +31,9 @@ class HousePricePredictor(mlflow.pyfunc.PythonModel):
         print(model_input)
         print(type(model_input))
         df = model_input
-        df[categorical_feature_names] = df[categorical_feature_names].astype("category")
+        df[cat_cols] = df[cat_cols].astype("category")
         new_cols = self.encoder.transform(df[columns_to_encode])
-        for c in categorical_feature_names:
+        for c in cat_cols:
             df[c] = df[c].cat.codes.astype(int)
         df.loc[:, columns_to_encode] = new_cols
         df["Month"] = df["Date"].dt.month
@@ -56,10 +58,7 @@ class HousePricePredictor(mlflow.pyfunc.PythonModel):
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-s", "--seed", help="Specify seed for reproducibility", type=int, default=42)
-parser.add_argument("-d", "--datafile", help="Path to datafile", type=str, default="MELBOURNE_HOUSE_PRICES_LESS.csv")
-
-def winsorized_absolute_log_error(y_true, y_pred, epsilon=1e-7):
-        return np.mean(np.minimum(np.abs(np.log(y_pred+epsilon) - np.log(y_true+epsilon)), 0.4))
+parser.add_argument("-d", "--datadir", help="Path to datafiles", type=str, default="data/prepped/")
 
 def get_metrics(true, pred, method="unknown", print_metrics=True, log_target=True):
     """
@@ -99,7 +98,7 @@ if __name__ == "__main__":
     
     conda_env_path = "environment.yml"
     model_prefix = "/models"
-    data_file = args.datafile
+    data_dir = args.datadir
 
     with mlflow.start_run() as run:
         # Get path to save model
@@ -111,38 +110,12 @@ if __name__ == "__main__":
         mlflow.log_param("seed", seed)
         mlflow.log_param("data_file", data_file)
         
-        df = pd.read_csv(datafile, parse_dates=["Date"])
-        df = df.dropna(subset=["Price"])
+        
 
-        df[categorical_feature_names] = df[categorical_feature_names].astype("category")
-        df["Month"] = df["Date"].dt.month
-        df["Year"] = df["Date"].dt.year
-
-        df["LogPrice"] = df["Price"].apply(np.log)
-
-        df = df.sort_values(by="Date")
-        holdout_test_idx = df.shape[0] - int(df.shape[0] * 0.1)
-        val_idx = df.shape[0] - int(df.shape[0] * 0.1) * 2
-
-        rfc_enc = OrdinalEncoder()
-        rfc_df = df
-        rfc_df[columns_to_encode] = rfc_enc.fit_transform(df[columns_to_encode])
-
-        rfc_train, rfc_valid, rfc_holdout_test = split_dataset(rfc_df, val_idx, holdout_test_idx)
-
-        rfc_X_train = rfc_train.drop(columns=columns_to_drop)
-        rfc_y_train = rfc_train["Price"]
-
-        rfc_X_valid = rfc_valid.drop(columns=columns_to_drop)
-        rfc_y_valid = rfc_valid["Price"]
-
-        rfc_X_test = rfc_holdout_test.drop(columns=columns_to_drop)
-        rfc_y_test = rfc_holdout_test["Price"]
-
-        cat_col_idx = np.array([rfc_X_train.columns.get_loc(c) for c in columns_to_encode])
-        rfc = CatBoostRegressor(iterations=500, loss_function="RMSE", task_type="CPU", border_count=256, model_size_reg=0)
-        rfc.fit(X=rfc_X_train, y=rfc_y_train, cat_features=cat_col_idx, eval_set=(rfc_X_valid, rfc_y_valid), silent=True, plot=False)
-        explainer = shap.TreeExplainer(rfc)
+        cat_col_idx = np.array([X_train.columns.get_loc(c) for c in cat_cols])
+        cb = CatBoostRegressor(iterations=500, loss_function="RMSE", task_type="GPU") #, border_count=256, model_size_reg=0)
+        cb.fit(X=rfc_X_train, y=rfc_y_train, cat_features=cat_col_idx, eval_set=(X_val, y_val), silent=True, plot=False)
+        explainer = shap.TreeExplainer(cb)
         
         housereg = HousePricePredictor(rfc_enc, explainer, cat_col_idx, rfc, log_target=False)
         print("Saving model to "+model_path)
